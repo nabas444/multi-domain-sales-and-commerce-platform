@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { dbPool } from '@platform/database';
 import { AuditService } from '../../common/audit/audit.service.js';
+import { S3StorageService } from '../../common/storage/s3-storage.service.js';
 
 export interface ListingFilter {
   domainId?: string;
@@ -15,6 +16,7 @@ export interface ListingFilter {
   priceMin?: number;
   priceMax?: number;
   search?: string;
+  attributes?: Record<string, any>;
   isFeatured?: boolean;
   limit?: number;
   offset?: number;
@@ -22,7 +24,10 @@ export interface ListingFilter {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly s3StorageService: S3StorageService
+  ) {}
 
   // 1. Listings Queries
   async listListings(filters: ListingFilter = {}) {
@@ -66,12 +71,23 @@ export class InventoryService {
       params.push(filters.isFeatured);
       sql += ` AND l.is_featured = $${params.length}`;
     }
-    if (filters.search) {
-      params.push(`%${filters.search}%`);
-      sql += ` AND (l.title ILIKE $${params.length} OR l.description ILIKE $${params.length})`;
+    if (filters.attributes && Object.keys(filters.attributes).length > 0) {
+      params.push(JSON.stringify(filters.attributes));
+      sql += ` AND l.attributes @> $${params.length}::jsonb`;
+    }
+    if (filters.search && filters.search.trim()) {
+      params.push(filters.search.trim());
+      sql += ` AND (
+        to_tsvector('english', l.title || ' ' || COALESCE(l.description, '')) @@ plainto_tsquery('english', $${params.length})
+        OR l.title ILIKE '%' || $${params.length} || '%'
+      )`;
     }
 
-    sql += ' ORDER BY l.is_featured DESC, l.created_at DESC';
+    if (filters.search && filters.search.trim()) {
+      sql += ` ORDER BY ts_rank(to_tsvector('english', l.title || ' ' || COALESCE(l.description, '')), plainto_tsquery('english', $${params.length})) DESC, l.is_featured DESC, l.created_at DESC`;
+    } else {
+      sql += ' ORDER BY l.is_featured DESC, l.created_at DESC';
+    }
 
     const limit = filters.limit || 50;
     params.push(limit);
@@ -326,5 +342,126 @@ export class InventoryService {
       [entityType, entityId]
     );
     return res.rows;
+  }
+
+  async generatePresignedMediaUpload(
+    organizationId: string,
+    params: {
+      fileName: string;
+      mimeType: string;
+      role?: string;
+      mediaType?: string;
+    },
+    actorId: string
+  ) {
+    const presigned = await this.s3StorageService.generatePresignedUploadUrl({
+      organizationId,
+      fileName: params.fileName,
+      mimeType: params.mimeType,
+      expiresInSeconds: 3600,
+    });
+
+    return {
+      ...presigned,
+      role: params.role || 'GALLERY',
+      mediaType: params.mediaType || 'IMAGE',
+    };
+  }
+
+  async confirmMediaUpload(
+    organizationId: string,
+    fileData: {
+      fileName: string;
+      fileUrl: string;
+      mimeType: string;
+      fileSizeBytes: number;
+      mediaType: string;
+      role?: string;
+      metadata?: any;
+    },
+    actorId: string
+  ) {
+    const res = await dbPool.query(
+      `INSERT INTO media.media_assets (
+         organization_id, file_name, file_url, mime_type, file_size_bytes, media_type, role, metadata, uploaded_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        organizationId,
+        fileData.fileName,
+        fileData.fileUrl,
+        fileData.mimeType,
+        fileData.fileSizeBytes,
+        fileData.mediaType,
+        fileData.role || 'GALLERY',
+        JSON.stringify(fileData.metadata || {}),
+        actorId,
+      ]
+    );
+
+    await this.auditService.log({
+      actorId,
+      organizationId,
+      resource: 'media',
+      resourceId: res.rows[0].id,
+      action: 'media.uploaded',
+      metadata: { fileUrl: fileData.fileUrl, fileName: fileData.fileName },
+    });
+
+    return res.rows[0];
+  }
+
+  async getFacets(domainId?: string, categoryId?: string) {
+    const params: unknown[] = [];
+    let whereClause = 'WHERE l.deleted_at IS NULL AND l.status = \'PUBLISHED\'';
+
+    if (domainId) {
+      params.push(domainId);
+      whereClause += ` AND l.domain_id = $${params.length}`;
+    }
+    if (categoryId) {
+      params.push(categoryId);
+      whereClause += ` AND l.category_id = $${params.length}`;
+    }
+
+    const [categoriesRes, priceRes, locationsRes] = await Promise.all([
+      dbPool.query(
+        `SELECT c.id, c.name, c.slug, COUNT(l.id)::int as count
+         FROM domains.categories c
+         LEFT JOIN inventory.listings l ON l.category_id = c.id AND l.deleted_at IS NULL AND l.status = 'PUBLISHED'
+         ${domainId ? 'WHERE c.domain_id = $1' : ''}
+         GROUP BY c.id, c.name, c.slug
+         HAVING COUNT(l.id) > 0
+         ORDER BY count DESC`,
+        domainId ? [domainId] : []
+      ),
+      dbPool.query(
+        `SELECT
+           COUNT(CASE WHEN price < 5000000 THEN 1 END)::int as under_5m,
+           COUNT(CASE WHEN price >= 5000000 AND price < 20000000 THEN 1 END)::int as between_5m_20m,
+           COUNT(CASE WHEN price >= 20000000 AND price < 50000000 THEN 1 END)::int as between_20m_50m,
+           COUNT(CASE WHEN price >= 50000000 THEN 1 END)::int as above_50m,
+           MIN(price)::numeric as min_price,
+           MAX(price)::numeric as max_price
+         FROM inventory.listings l
+         ${whereClause}`,
+        params
+      ),
+      dbPool.query(
+        `SELECT l.location->>'subcity' as subcity, COUNT(l.id)::int as count
+         FROM inventory.listings l
+         ${whereClause} AND l.location->>'subcity' IS NOT NULL
+         GROUP BY l.location->>'subcity'
+         ORDER BY count DESC
+         LIMIT 10`,
+        params
+      ),
+    ]);
+
+    return {
+      categories: categoriesRes.rows,
+      priceRanges: priceRes.rows[0] || {},
+      subcities: locationsRes.rows,
+    };
   }
 }

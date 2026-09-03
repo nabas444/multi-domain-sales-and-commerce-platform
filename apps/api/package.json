@@ -23,6 +23,8 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.9",
     "@nestjs/swagger": "^11.0.3",
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@aws-sdk/s3-request-presigner": "^3.750.0",
     "@platform/config": "workspace:*",
     "@platform/database": "workspace:*",
     "@platform/types": "workspace:*",

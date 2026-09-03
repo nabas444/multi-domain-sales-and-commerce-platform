@@ -91,6 +91,36 @@ export default function DomainsPage() {
     setLoading(true);
     try {
       const res = await fetch('http://localhost:4000/api/v1/domains').catch(() => null);
+      const defaultDomains = [
+        {
+          id: 'd1',
+          name: 'Real Estate',
+          slug: 'real-estate',
+          code: 'REAL_ESTATE',
+          description: 'Residential apartments, commercial buildings, villas, land, and off-plan projects',
+          status: 'ACTIVE',
+          default_currency: 'ETB',
+        },
+        {
+          id: 'd2',
+          name: 'Automotive',
+          slug: 'automotive',
+          code: 'AUTOMOTIVE',
+          description: 'Passenger vehicles, commercial trucks, SUVs, motorcycles, and machinery',
+          status: 'ACTIVE',
+          default_currency: 'ETB',
+        },
+        {
+          id: 'd3',
+          name: 'Elevators & Vertical Transport',
+          slug: 'elevators',
+          code: 'ELEVATORS',
+          description: 'Passenger, panoramic, freight elevators, escalators, and maintenance services',
+          status: 'ACTIVE',
+          default_currency: 'ETB',
+        },
+      ];
+
       if (res && res.ok) {
         const json = await res.json();
         const data = Array.isArray(json) ? json : (json?.data || []);
@@ -102,36 +132,6 @@ export default function DomainsPage() {
           setDomains(defaultDomains);
         }
       } else {
-        // High fidelity fallback matching seed
-        const defaultDomains = [
-          {
-            id: 'd1',
-            name: 'Real Estate',
-            slug: 'real-estate',
-            code: 'REAL_ESTATE',
-            description: 'Residential apartments, commercial buildings, villas, land, and off-plan projects',
-            status: 'ACTIVE',
-            default_currency: 'ETB',
-          },
-          {
-            id: 'd2',
-            name: 'Automotive',
-            slug: 'automotive',
-            code: 'AUTOMOTIVE',
-            description: 'Passenger vehicles, commercial trucks, SUVs, motorcycles, and machinery',
-            status: 'ACTIVE',
-            default_currency: 'ETB',
-          },
-          {
-            id: 'd3',
-            name: 'Elevators & Vertical Transport',
-            slug: 'elevators',
-            code: 'ELEVATORS',
-            description: 'Passenger, panoramic, freight elevators, escalators, and maintenance services',
-            status: 'ACTIVE',
-            default_currency: 'ETB',
-          },
-        ];
         setDomains(defaultDomains);
         setSelectedDomainId(defaultDomains[0].id);
         fetchCategoriesAndAttributes(defaultDomains[0].id);

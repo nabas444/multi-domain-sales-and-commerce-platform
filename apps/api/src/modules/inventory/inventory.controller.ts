@@ -79,6 +79,40 @@ export class InventoryController {
     );
   }
 
+  @Get('facets')
+  async getFacets(
+    @Query('domainId') domainId?: string,
+    @Query('categoryId') categoryId?: string
+  ) {
+    return this.inventoryService.getFacets(domainId, categoryId);
+  }
+
+  @Post('media/presign')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  async getPresignedUpload(
+    @Body() body: { fileName: string; mimeType: string; role?: string; mediaType?: string },
+    @CurrentUser() user: UserContext
+  ) {
+    return this.inventoryService.generatePresignedMediaUpload(
+      user.activeOrganizationId!,
+      body,
+      user.id
+    );
+  }
+
+  @Post('media/confirm')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  async confirmUpload(
+    @Body() body: any,
+    @CurrentUser() user: UserContext
+  ) {
+    return this.inventoryService.confirmMediaUpload(
+      user.activeOrganizationId!,
+      body,
+      user.id
+    );
+  }
+
   @Post('media')
   @UseGuards(JwtAuthGuard, TenantGuard)
   async uploadMedia(

@@ -1,0 +1,95 @@
+name: CI Quality Gate
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    name: Lint, Typecheck, Migrate & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: platform_core
+          POSTGRES_USER: platform_admin
+          POSTGRES_PASSWORD: platform_secure_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://platform_admin:platform_secure_password@localhost:5432/platform_core?sslmode=disable
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: platform_admin
+      POSTGRES_PASSWORD: platform_secure_password
+      POSTGRES_DB: platform_core
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: dev_jwt_secret_change_in_production_super_secure_32chars
+      SESSION_SECRET: dev_session_secret_change_in_production_32chars
+      COOKIE_SECRET: dev_cookie_secret_change_in_production_32chars
+      S3_ENDPOINT: localhost
+      S3_PORT: 9000
+      S3_USE_SSL: false
+      S3_ACCESS_KEY: minio_admin
+      S3_SECRET_KEY: minio_secure_password
+      S3_BUCKET_NAME: platform-media
+      S3_REGION: us-east-1
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Monorepo Dependencies
+        run: pnpm install
+
+      - name: Monorepo Typecheck
+        run: pnpm -r run typecheck
+
+      - name: Build Core Packages
+        run: |
+          pnpm --filter @platform/config build
+          pnpm --filter @platform/types build
+          pnpm --filter @platform/validation build
+          pnpm --filter @platform/database build
+
+      - name: Run Database Migrations
+        run: pnpm --filter @platform/database migrate
+
+      - name: Seed Database Test Fixtures
+        run: pnpm --filter @platform/database seed
+
+      - name: Run Backend Integration Test Suites
+        run: pnpm --filter @platform/api test
