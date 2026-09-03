@@ -1,0 +1,26 @@
+{
+  "name": "multi-domain-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-Domain Sales & Commerce Platform - SaaS + Marketplace + Inventory + CRM + Commercial Engine",
+  "packageManager": "pnpm@11.11.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "docker:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f infra/docker/docker-compose.yml logs -f"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3",
+    "prettier": "^3.5.1"
+  }
+}
