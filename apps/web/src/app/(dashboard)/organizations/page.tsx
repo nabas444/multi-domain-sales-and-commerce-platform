@@ -15,8 +15,11 @@ import {
   TableCell,
   Badge,
   Button,
+  Modal,
+  Input,
+  Select,
 } from '@platform/ui';
-import { Building2, Plus, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Building2, Plus, CheckCircle2, ShieldCheck, Eye, MapPin } from 'lucide-react';
 
 interface OrgRecord {
   id: string;
@@ -29,7 +32,7 @@ interface OrgRecord {
 }
 
 export default function OrganizationsPage() {
-  const [organizations] = useState<OrgRecord[]>([
+  const [organizations, setOrganizations] = useState<OrgRecord[]>([
     {
       id: '00000000-0000-0000-0000-000000000001',
       name: 'System Provider Global',
@@ -50,6 +53,35 @@ export default function OrganizationsPage() {
     },
   ]);
 
+  const [onboardModalOpen, setOnboardModalOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<OrgRecord | null>(null);
+
+  // Form states
+  const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgSlug, setNewOrgSlug] = useState('');
+  const [newOrgType, setNewOrgType] = useState('DEVELOPER');
+  const [newOrgCity, setNewOrgCity] = useState('Addis Ababa');
+
+  const handleOnboardSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrgName.trim()) return;
+
+    const newOrg: OrgRecord = {
+      id: `org-${Date.now()}`,
+      name: newOrgName.trim(),
+      slug: newOrgSlug.trim() || newOrgName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      type: newOrgType,
+      status: 'ACTIVE',
+      city: newOrgCity.trim() || 'Addis Ababa',
+      branchCount: 1,
+    };
+
+    setOrganizations((prev) => [...prev, newOrg]);
+    setNewOrgName('');
+    setNewOrgSlug('');
+    setOnboardModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -62,7 +94,7 @@ export default function OrganizationsPage() {
             Manage partner onboarding, legal verification status, branches, and tenant scopes
           </p>
         </div>
-        <Button variant="primary" size="sm">
+        <Button variant="primary" size="sm" onClick={() => setOnboardModalOpen(true)}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           Onboard New Partner
         </Button>
@@ -73,7 +105,7 @@ export default function OrganizationsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">Registered Organizations</CardTitle>
           <CardDescription className="text-xs">
-            Showing all active tenant boundaries in the system
+            Showing all {organizations.length} active tenant boundaries in the system
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -116,7 +148,13 @@ export default function OrganizationsPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setSelectedOrg(org)}
+                    >
+                      <Eye className="mr-1 h-3 w-3" />
                       View Tenant
                     </Button>
                   </TableCell>
@@ -126,6 +164,132 @@ export default function OrganizationsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Onboard New Partner Modal */}
+      <Modal
+        isOpen={onboardModalOpen}
+        onClose={() => setOnboardModalOpen(false)}
+        title="Onboard New Partner Organization"
+      >
+        <form onSubmit={handleOnboardSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-zinc-700 block mb-1">
+              Organization Legal Name
+            </label>
+            <Input
+              required
+              placeholder="e.g. Zemen Automotive PLC"
+              value={newOrgName}
+              onChange={(e) => {
+                setNewOrgName(e.target.value);
+                setNewOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+              }}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-zinc-700 block mb-1">
+              Tenant Slug (Subdomain identifier)
+            </label>
+            <Input
+              required
+              placeholder="e.g. zemen-automotive"
+              value={newOrgSlug}
+              onChange={(e) => setNewOrgSlug(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-zinc-700 block mb-1">
+                Commercial Type
+              </label>
+              <Select
+                value={newOrgType}
+                onChange={(e) => setNewOrgType(e.target.value)}
+                options={[
+                  { value: 'DEVELOPER', label: 'Real Estate Developer' },
+                  { value: 'DEALER', label: 'Automotive Dealer' },
+                  { value: 'DISTRIBUTOR', label: 'Equipment Distributor' },
+                  { value: 'BROKER', label: 'Brokerage Firm' },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-zinc-700 block mb-1">
+                Headquarters City
+              </label>
+              <Input
+                placeholder="Addis Ababa"
+                value={newOrgCity}
+                onChange={(e) => setNewOrgCity(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="outline" type="button" onClick={() => setOnboardModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              Complete Onboarding
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* View Tenant Modal */}
+      <Modal
+        isOpen={!!selectedOrg}
+        onClose={() => setSelectedOrg(null)}
+        title={`Tenant Dossier: ${selectedOrg?.name || ''}`}
+      >
+        {selectedOrg && (
+          <div className="space-y-4">
+            <div className="p-3 bg-zinc-50 rounded border border-zinc-200 text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Tenant UUID:</span>
+                <span className="font-mono text-zinc-800">{selectedOrg.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Tenant Slug:</span>
+                <span className="font-mono font-semibold text-zinc-900">{selectedOrg.slug}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Commercial Category:</span>
+                <Badge variant="secondary" className="text-[10px]">{selectedOrg.type}</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Isolation Boundary:</span>
+                <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Strict Row-Level Scoped
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Location:</span>
+                <span className="text-zinc-800">{selectedOrg.city}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSelectedOrg(null)}>
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  alert(`Switched workspace context to ${selectedOrg.name}`);
+                  setSelectedOrg(null);
+                }}
+              >
+                Switch Context &rarr;
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

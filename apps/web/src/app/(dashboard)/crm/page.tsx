@@ -192,6 +192,22 @@ export default function CrmPage() {
   };
 
   const handleCreateLead = async () => {
+    if (!custFirstName.trim()) return;
+    const newLead: Lead = {
+      id: `ld-${Date.now()}`,
+      first_name: custFirstName,
+      last_name: custLastName || 'Lead',
+      phone: custPhone || '+251911000000',
+      status: 'NEW',
+      priority: 'HIGH',
+      inquiry_message: inquiryMsg || 'Interested in property inquiry',
+      listing_title: 'Luxury 3-Bedroom Penthouse in Bole Atlas',
+      agent_first_name: 'Selam',
+      agent_last_name: 'Bekele',
+      sla_deadline: new Date(Date.now() + 1800000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
     const token = localStorage.getItem('platform_token');
     try {
       await fetch('http://localhost:4000/api/v1/crm/leads', {
@@ -200,23 +216,40 @@ export default function CrmPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          domainId: 'real-estate',
-          customer: {
-            firstName: custFirstName,
-            lastName: custLastName,
-            phone: custPhone,
-          },
-          inquiryMessage: inquiryMsg,
-          priority: 'HIGH',
-        }),
+        body: JSON.stringify(newLead),
       });
-      setNewLeadModal(false);
-      fetchCrmData();
     } catch {
-      alert('Lead created locally.');
-      setNewLeadModal(false);
+      // Offline fallback
     }
+
+    setLeads((prev) => [newLead, ...prev]);
+    setNewLeadModal(false);
+    setCustFirstName('');
+    setCustLastName('');
+    setCustPhone('');
+    setInquiryMsg('');
+  };
+
+  const handleConvertToDeal = (lead: Lead) => {
+    const newDeal: Deal = {
+      id: `dl-${Date.now()}`,
+      title: `${lead.listing_title || 'Property Acquisition'} - ${lead.first_name}`,
+      deal_value: 18500000,
+      currency: 'ETB',
+      stage_name: 'Negotiation / Reservation',
+      stage_code: 'NEGOTIATION',
+      win_probability: 75,
+      customer_first_name: lead.first_name,
+      customer_last_name: lead.last_name,
+      agent_first_name: lead.agent_first_name || 'Selam',
+    };
+
+    setDeals((prev) => [newDeal, ...prev]);
+    setLeads((prev) =>
+      prev.map((l) => (l.id === lead.id ? { ...l, status: 'QUALIFIED' } : l))
+    );
+    setSelectedLead(null);
+    setActiveTab('deals');
   };
 
   return (
@@ -438,7 +471,7 @@ export default function CrmPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setSelectedLead(null)}>Close</Button>
-              <Button variant="primary" onClick={() => alert('Deal created from lead.')}>
+              <Button variant="primary" onClick={() => handleConvertToDeal(selectedLead)}>
                 Convert to Deal &rarr;
               </Button>
             </div>

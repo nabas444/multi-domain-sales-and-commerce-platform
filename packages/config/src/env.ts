@@ -49,6 +49,13 @@ const EnvSchema = z.object({
   SESSION_SECRET: z.string().min(16).default('dev_session_secret_change_in_production_32chars'),
   COOKIE_SECRET: z.string().min(16).default('dev_cookie_secret_change_in_production_32chars'),
 
+  // Cloudinary
+  CLOUDINARY_URL: z.string().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().default('besmhzyh'),
+  CLOUDINARY_API_KEY: z.string().optional().default(''),
+  CLOUDINARY_API_SECRET: z.string().optional().default(''),
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: z.string().default('besmhzyh'),
+
   // Logging
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('debug'),
 });

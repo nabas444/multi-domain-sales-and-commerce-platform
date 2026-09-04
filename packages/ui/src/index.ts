@@ -9,4 +9,6 @@ export * from './Modal.js';
 export * from './Tabs.js';
 export * from './EmptyState.js';
 export * from './LoadingSpinner.js';
+export * from './Charts.js';
+export * from './Accordion.js';
 export * from './utils.js';

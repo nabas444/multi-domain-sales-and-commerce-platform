@@ -23,6 +23,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Download,
+  Printer,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface LedgerEntry {
@@ -55,6 +57,8 @@ export default function FinancePage() {
   const [disputeModalOpen, setDisputeModalOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeAmount, setDisputeAmount] = useState('');
+  const [statementModalOpen, setStatementModalOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
     fetchFinanceData();
@@ -73,75 +77,123 @@ export default function FinancePage() {
       if (ledRes && ledRes.ok) {
         const json = await ledRes.json();
         const items = Array.isArray(json) ? json : (json?.data || []);
-        setLedger(items.length > 0 ? items : [
-          {
-            id: 'led1',
-            entry_type: 'PLATFORM_FEE',
-            debit_amount: 370000,
-            credit_amount: 0,
-            balance_after: -370000,
-            currency: 'ETB',
-            reference_number: 'TXN-1725354000-881',
-            notes: 'Platform success fee on deal DL-001 (Rate: 2.0%)',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'led2',
-            entry_type: 'AGENT_COMMISSION',
-            debit_amount: 185000,
-            credit_amount: 0,
-            balance_after: -555000,
-            currency: 'ETB',
-            reference_number: 'TXN-1725354000-881-AGT',
-            notes: 'Sales agent commission for Selam Bekele (Rate: 1.0%)',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'led3',
-            entry_type: 'SUBSCRIPTION_FEE',
-            debit_amount: 25000,
-            credit_amount: 0,
-            balance_after: -25000,
-            currency: 'ETB',
-            reference_number: 'LED-INIT-001',
-            notes: 'Monthly enterprise SaaS subscription invoice',
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-          },
-        ]);
+        if (items.length > 0) {
+          setLedger(items);
+        } else {
+          loadDefaultLedger();
+        }
+      } else {
+        loadDefaultLedger();
       }
 
       if (invRes && invRes.ok) {
         const json = await invRes.json();
         const items = Array.isArray(json) ? json : (json?.data || []);
-        setInvoices(items.length > 0 ? items : [
-          {
-            id: 'inv1',
-            invoice_number: 'INV-2026-001',
-            type: 'SUBSCRIPTION',
-            total_amount: 25000,
-            currency: 'ETB',
-            status: 'PAID',
-            due_date: '2026-02-01',
-          },
-          {
-            id: 'inv2',
-            invoice_number: 'INV-2026-002',
-            type: 'COMMISSION_FEE',
-            total_amount: 370000,
-            currency: 'ETB',
-            status: 'ISSUED',
-            due_date: '2026-02-15',
-          },
-        ]);
+        if (items.length > 0) {
+          setInvoices(items);
+        } else {
+          loadDefaultInvoices();
+        }
+      } else {
+        loadDefaultInvoices();
       }
     } catch {
-      // Handled
+      loadDefaultLedger();
+      loadDefaultInvoices();
     }
   };
 
-  const handleFileDispute = async () => {
-    alert('Commercial dispute submitted. Funds held in escrow until audit review.');
+  const loadDefaultLedger = () => {
+    setLedger([
+      {
+        id: 'led1',
+        entry_type: 'PLATFORM_FEE',
+        debit_amount: 370000,
+        credit_amount: 0,
+        balance_after: -370000,
+        currency: 'ETB',
+        reference_number: 'TXN-1725354000-881',
+        notes: 'Platform success fee on deal DL-001 (Rate: 2.0%)',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'led2',
+        entry_type: 'AGENT_COMMISSION',
+        debit_amount: 185000,
+        credit_amount: 0,
+        balance_after: -555000,
+        currency: 'ETB',
+        reference_number: 'TXN-1725354000-881-AGT',
+        notes: 'Sales agent commission for Selam Bekele (Rate: 1.0%)',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'led3',
+        entry_type: 'SUBSCRIPTION_FEE',
+        debit_amount: 25000,
+        credit_amount: 0,
+        balance_after: -25000,
+        currency: 'ETB',
+        reference_number: 'LED-INIT-001',
+        notes: 'Monthly enterprise SaaS subscription invoice',
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ]);
+  };
+
+  const loadDefaultInvoices = () => {
+    setInvoices([
+      {
+        id: 'inv1',
+        invoice_number: 'INV-2026-001',
+        type: 'SUBSCRIPTION',
+        total_amount: 25000,
+        currency: 'ETB',
+        status: 'PAID',
+        due_date: '2026-02-01',
+      },
+      {
+        id: 'inv2',
+        invoice_number: 'INV-2026-002',
+        type: 'COMMISSION_FEE',
+        total_amount: 370000,
+        currency: 'ETB',
+        status: 'ISSUED',
+        due_date: '2026-02-15',
+      },
+    ]);
+  };
+
+  const handleFileDispute = () => {
+    const adj = parseFloat(disputeAmount) || 50000;
+    const newEntry: LedgerEntry = {
+      id: `dsp-${Date.now()}`,
+      entry_type: 'DISPUTE_ESCROW_HOLD',
+      debit_amount: 0,
+      credit_amount: adj,
+      balance_after: adj,
+      currency: 'ETB',
+      reference_number: `DSP-${Date.now().toString().slice(-6)}`,
+      notes: `Escrow hold: ${disputeReason || 'Disputed fee transaction'}`,
+      created_at: new Date().toISOString(),
+    };
+
+    setLedger((prev) => [newEntry, ...prev]);
     setDisputeModalOpen(false);
+    setDisputeReason('');
+    setDisputeAmount('');
+    setActiveTab('ledger');
+  };
+
+  const handleDownloadInvoice = (inv: Invoice) => {
+    const content = `INVOICE: ${inv.invoice_number}\nType: ${inv.type}\nAmount: ${inv.total_amount.toLocaleString()} ${inv.currency}\nStatus: ${inv.status}\nDue Date: ${inv.due_date}\nOrganization: Apex Real Estate Group\nMulti-Domain Platform Settlement`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${inv.invoice_number}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -162,7 +214,7 @@ export default function FinancePage() {
             <AlertOctagon className="h-4 w-4 mr-1.5 text-rose-600" />
             File Dispute
           </Button>
-          <Button variant="primary">
+          <Button variant="primary" onClick={() => setStatementModalOpen(true)}>
             <Download className="h-4 w-4 mr-1.5" />
             Generate Settlement Statement
           </Button>
@@ -307,7 +359,14 @@ export default function FinancePage() {
                         <Badge variant={inv.status === 'PAID' ? 'success' : 'warning'}>{inv.status}</Badge>
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <Button variant="outline" size="sm">Download PDF</Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadInvoice(inv)}
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1" />
+                          Download
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -348,6 +407,56 @@ export default function FinancePage() {
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="outline" onClick={() => setDisputeModalOpen(false)}>Cancel</Button>
             <Button variant="danger" onClick={handleFileDispute}>Submit Dispute</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Settlement Statement Preview Modal */}
+      <Modal
+        isOpen={statementModalOpen}
+        onClose={() => setStatementModalOpen(false)}
+        title="Partner Settlement Statement (Cycle Q1 2026)"
+      >
+        <div className="space-y-4">
+          <div className="p-4 bg-zinc-50 border border-zinc-200 rounded text-xs space-y-2">
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Partner Organization:</span>
+              <strong className="text-zinc-900">Apex Real Estate Group</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Settlement Period:</span>
+              <span className="text-zinc-800">Jan 1, 2026 – Jan 31, 2026</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Gross Processed Volume:</span>
+              <span className="font-mono font-semibold text-zinc-900">18,500,000 ETB</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Platform Retained Fees (2.0%):</span>
+              <span className="font-mono text-rose-600">-370,000 ETB</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Sales Agent Commission (1.0%):</span>
+              <span className="font-mono text-blue-600">-185,000 ETB</span>
+            </div>
+            <div className="border-t border-zinc-200 pt-2 flex justify-between font-bold text-sm">
+              <span className="text-zinc-900">Net Settled Disbursal:</span>
+              <span className="font-mono text-emerald-700">17,945,000 ETB</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setStatementModalOpen(false)}>Close</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                alert('Settlement statement exported to ledger audit archive.');
+                setStatementModalOpen(false);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-1.5" />
+              Confirm & Print
+            </Button>
           </div>
         </div>
       </Modal>

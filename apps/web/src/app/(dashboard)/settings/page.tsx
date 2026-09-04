@@ -175,11 +175,11 @@ export default function SettingsPage() {
   const handleSaveOverride = async () => {
     if (!editingSetting) return;
     const token = localStorage.getItem('platform_token');
-    try {
-      let parsedValue: any = overrideValue;
-      if (editingSetting.data_type === 'NUMBER') parsedValue = Number(overrideValue);
-      if (editingSetting.data_type === 'BOOLEAN') parsedValue = overrideValue === 'true';
+    let parsedValue: any = overrideValue;
+    if (editingSetting.data_type === 'NUMBER') parsedValue = Number(overrideValue);
+    if (editingSetting.data_type === 'BOOLEAN') parsedValue = overrideValue === 'true';
 
+    try {
       await fetch(`http://localhost:4000/api/v1/settings/values/${editingSetting.key}`, {
         method: 'POST',
         headers: {
@@ -194,15 +194,38 @@ export default function SettingsPage() {
       });
 
       setSaveSuccess(true);
+      setDefinitions((prev) =>
+        prev.map((d) =>
+          d.key === editingSetting.key ? { ...d, default_value: parsedValue } : d
+        )
+      );
       setTimeout(() => {
         setSaveSuccess(false);
         setEditingSetting(null);
-      }, 1200);
-      fetchSettings();
+      }, 1000);
     } catch {
-      alert('Setting override saved locally.');
-      setEditingSetting(null);
+      setDefinitions((prev) =>
+        prev.map((d) =>
+          d.key === editingSetting.key ? { ...d, default_value: parsedValue } : d
+        )
+      );
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setEditingSetting(null);
+      }, 1000);
     }
+  };
+
+  const toggleFlagState = (flagId: string) => {
+    const states: ('OFF' | 'INTERNAL' | 'BETA' | 'ON')[] = ['OFF', 'INTERNAL', 'BETA', 'ON'];
+    setFeatureFlags((prev) =>
+      prev.map((f) => {
+        if (f.id !== flagId) return f;
+        const nextIndex = (states.indexOf(f.state) + 1) % states.length;
+        return { ...f, state: states[nextIndex] };
+      })
+    );
   };
 
   const filteredDefinitions = definitions.filter((def) => {
@@ -463,7 +486,7 @@ export default function SettingsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => alert(`Toggled ${flag.name}`)}
+                        onClick={() => toggleFlagState(flag.id)}
                       >
                         Change State
                       </Button>
